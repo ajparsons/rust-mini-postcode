@@ -1,0 +1,40 @@
+[package]
+name = "mini_postcode"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bench]]
+name = "postcodes"
+harness = false
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+js-sys = "0.3.69"
+wasm-bindgen = "0.2.92"
+
+
+[dev-dependencies]
+criterion = "0.5.1"
+csv = "1.3.0"
+
+[build-dependencies]
+serde = "1.0.203"
+serde_derive = "1.0.203"
+serde_json = "1.0.118"
+
+[profile.release]
+lto = true
+opt-level=3
+
+#[profile.release]
+#codegen-units = 1
+#lto = true
+#panic = "abort"
+#opt-level = "s"
+#debug = 0
+#strip = true

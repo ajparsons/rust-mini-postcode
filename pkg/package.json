@@ -1,0 +1,14 @@
+{
+  "name": "mini_postcode",
+  "version": "0.1.0",
+  "files": [
+    "mini_postcode_bg.wasm",
+    "mini_postcode.js",
+    "mini_postcode.d.ts"
+  ],
+  "module": "mini_postcode.js",
+  "types": "mini_postcode.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Postcode to Constituency Converter</title>
+    <style>
+        .container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .textbox {
+            width: 45%;
+            height: 500px;
+            resize: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Postcode to Constituency Converter</h1>
+
+
+
+    <div class="container">
+
+
+
+        <textarea id="postcodes" class="textbox" placeholder="Enter postcodes"></textarea>
+        <textarea id="constituencies" class="textbox" readonly></textarea>
+    </div>
+    <br>
+
+
+    <input type="radio" id="mysoc_id" name="output_type" value="mysoc_id" checked>
+    <label for="mysoc_id">mySoc ID</label><br>
+    <input type="radio" id="parlcon_2024_name" name="output_type" value="parlcon_2024_name">
+    <label for="parlcon_2024_name">Constituency name</label><br>
+    <input type="radio" id="parlcon_2024_name_cy" name="output_type" value="parlcon_2024_name_cy">
+    <label for="parlcon_2024_name_cy">Constituency name (Welsh)</label><br>
+    <input type="radio" id="parlcon_2024_gss_code" name="output_type" value="parlcon_2024_gss_code">
+    <label for="parlcon_2024_gss_code">GSS code</label><br>
+    <input type="radio" id="parlcon_2024_three_code" name="output_type" value="parlcon_2024_three_code">
+    <label for="parlcon_2024_three_code">Three code</label><br>
+
+
+    <button id="copyButton">Copy Constituencies to clipboard</button>
+
+    <script type="module">
+        import init, { PostcodeRangeLookup, allocate_vector, deallocate_vector, get_memory } from "./mini_postcode.js";
+        init().then(() => {
+            window.postcode_lookup = PostcodeRangeLookup.from_binary_data();
+            
+            window.allocate_vector = allocate_vector;
+            window.deallocate_vector = deallocate_vector;
+            window.wasm_buffer = get_memory();
+            window.value_values = window.postcode_lookup.get_value_values();
+        });
+
+      </script>
+      <script>
+
+    const ZERO_CODE = "0".charCodeAt(0);
+    const A_CODE = "A".charCodeAt(0);
+    const A_CODE_LOWER = "a".charCodeAt(0);
+
+    const base36Lookup = (() => {
+        const lookup = new Array(128).fill(null);
+        for (let i = 0; i < 10; i++) {
+            lookup[ZERO_CODE + i] = i;
+        }
+        for (let i = 0; i < 26; i++) {
+            lookup[A_CODE + i] = 10 + i;
+            lookup[A_CODE_LOWER + i] = 10 + i;
+        }
+        return lookup;
+    })();
+
+    function charToBase36(c) {
+        const code = c.charCodeAt(0);
+        return code < base36Lookup.length ? base36Lookup[code] : null;
+    }
+
+    function postcodeToInt(postcode) {
+        let currentNumber = 0;
+        for (let i = 0; i < postcode.length; i++) {
+            const value = charToBase36(postcode[i]);
+            if (value !== null) {
+                currentNumber = currentNumber * 36 + value;
+            }
+        }
+        return currentNumber;
+    }
+
+    function countCharacter(str, char) {
+    let count = 0;
+    for (let i = 0; i < str.length; i++) {
+        if (str[i] === char) {
+            count++;
+        }
+    }
+    return count;
+}
+
+    function filterAndConvertPostcodes(postcodes, delimiter) {
+
+    let currentNumber = 0;
+    let itemCount = 0;
+
+    let delimiterCount = countCharacter(postcodes, delimiter);
+
+    let ptr = allocate_vector(delimiterCount + 1);
+    let memory = new BigUint64Array(window.wasm_buffer, ptr, delimiterCount + 1);
+
+    for (let i = 0; i < postcodes.length; i++) {
+        const c = postcodes[i];
+        if (c === delimiter) {
+            memory[itemCount] = BigInt(currentNumber);
+            itemCount++;
+            currentNumber = 0;
+        } else {
+            const value = charToBase36(c);
+            if (value !== null) {
+                currentNumber = currentNumber * 36 + value;
+            }
+        }
+    }
+
+    // Add the last number if there is no trailing delimiter
+    if (currentNumber !== 0) {
+        memory[itemCount] = BigInt(currentNumber);
+    }
+
+    return {ptr: ptr, memory: memory, len: itemCount + 1};
+}  
+
+    function test_multiple() {
+
+        let times = [];
+        let iteratorCount = 200;
+
+        for (let i = 0; i < iteratorCount; i++) {
+            timings = process(null, false);
+            times.push(timings);
+        }
+
+        // Calculate average time for each time in the timings dict
+        average = {
+            "Postcodes to int time": 0,
+            "Lookup time": 0,
+            "Constituency lookup time": 0,
+            "Time taken": 0
+        };
+
+        for (let i = 0; i < iteratorCount; i++) {
+            average["Postcodes to int time"] += times[i]["Postcodes to int time"];
+            average["Lookup time"] += times[i]["Lookup time"];
+            average["Constituency lookup time"] += times[i]["Constituency lookup time"];
+            average["Time taken"] += times[i]["Time taken"];
+
+        }
+
+        for (const key in average) {
+            average[key] /= iteratorCount;
+        }
+
+        for (const key in average) {
+            console.log(key + ": " + average[key] + "ms");
+        }
+
+    }
+    function process(e, print_verbose = true) {
+
+            var startTime = performance.now();
+
+            var output_type = document.querySelector('input[name="output_type"]:checked').value;
+
+            var postcodes = document.getElementById("postcodes");
+            var postcode_str = postcodes.value;
+            // var postcodes_array = postcode_str.split("\n").map(postcodeToInt);
+            var filtered = filterAndConvertPostcodes(postcode_str, "\n");
+
+            var PostCodestoIntTime = performance.now();
+
+            var constituency_ids = window.postcode_lookup.get_values_vec_array(filtered.memory); 
+            // use the ids to access window.value_values and get the desired output
+
+            var lookupTime = performance.now();
+
+            deallocate_vector(filtered.ptr, filtered.len);
+
+            var constituencies = new Array(filtered.len);
+            for (let i = 0; i < filtered.len; i++) {
+                    constituencies[i] = window.value_values[constituency_ids[i]];
+                }
+
+            var constituencyLookupTime = performance.now();
+
+            document.getElementById("constituencies").value = constituencies.join("\n");
+
+            var endTime = performance.now();
+            
+            var timings = {
+                "Postcodes to int time": PostCodestoIntTime - startTime,
+                "Lookup time": lookupTime - PostCodestoIntTime,
+                "Constituency lookup time": constituencyLookupTime - lookupTime,
+                "Time taken": endTime - startTime
+            };
+            if (print_verbose == true) {
+                console.log("Postcodes to int time: " + (PostCodestoIntTime - startTime) + "ms");
+                console.log("Lookup time: " + (lookupTime - PostCodestoIntTime) + "ms");
+                console.log("Constituency lookup time: " + (constituencyLookupTime - lookupTime) + "ms");
+                console.log("Time taken: " + (endTime - startTime) + "ms");
+            }
+            return timings;
+        }
+
+
+        document.getElementById("postcodes").addEventListener("input", process);
+        document.getElementsByName("output_type").forEach(function (element) {
+            element.addEventListener("input", process);
+        });
+
+        document.getElementById("copyButton").addEventListener("click", function () {
+            var constituenciesText = document.getElementById("constituencies").value;
+            navigator.clipboard.writeText(constituenciesText)
+                .then(() => {
+                    console.log("Constituencies copied to clipboard");
+                })
+                .catch(error => {
+                    console.error("Error copying constituencies to clipboard:", error);
+                });
+        });
+    </script>
+</body>
+
+</html>
