@@ -12,6 +12,7 @@ To run this application:
 cargo run "SW1W 0NY,PO16 7GZ"
 ```
 
+
 Notes:
 
 This approach optimises for a small rust binary. See `script/build` for the wasm approach. 
